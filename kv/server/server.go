@@ -38,22 +38,94 @@ func NewServer(storage storage.Storage) *Server {
 // Raw API.
 func (server *Server) RawGet(_ context.Context, req *kvrpcpb.RawGetRequest) (*kvrpcpb.RawGetResponse, error) {
 	// Your Code Here (1).
-	return nil, nil
+	// get value where key == req.key
+	reader, err := server.storage.Reader(req.Context)
+	if err != nil {
+		return &kvrpcpb.RawGetResponse{Error: err.Error()}, err
+	}
+	value, err := reader.GetCF(req.Cf, req.Key)
+	if err != nil {
+		return &kvrpcpb.RawGetResponse{Error: err.Error()}, err
+	}
+	getResponse := &kvrpcpb.RawGetResponse{
+		Value:    value,
+		NotFound: false,
+	}
+	if value == nil {
+		getResponse.NotFound = true
+	}
+	return getResponse, nil
 }
 
 func (server *Server) RawPut(_ context.Context, req *kvrpcpb.RawPutRequest) (*kvrpcpb.RawPutResponse, error) {
 	// Your Code Here (1).
-	return nil, nil
+	// set req.key req.value
+	response := new(kvrpcpb.RawPutResponse)
+	cont := req.GetContext()
+	//built []storage.Modify,prepare for Write
+	putModify := []storage.Modify{
+		storage.Modify{
+			Data: storage.Put{
+				Key:   req.GetKey(),
+				Value: req.GetValue(),
+				Cf:    req.GetCf(),
+			},
+		},
+	}
+	err := server.storage.Write(cont, putModify)
+	return response, err
 }
 
 func (server *Server) RawDelete(_ context.Context, req *kvrpcpb.RawDeleteRequest) (*kvrpcpb.RawDeleteResponse, error) {
 	// Your Code Here (1).
-	return nil, nil
+	// delete req.key
+	response := new(kvrpcpb.RawDeleteResponse)
+	cont := req.GetContext()
+	// built []storage.Modify,prepare for Write
+	deleteModify := []storage.Modify{
+		storage.Modify{
+			Data: storage.Delete{
+				Key: req.GetKey(),
+				Cf:  req.GetCf(),
+			},
+		},
+	}
+	err := server.storage.Write(cont, deleteModify)
+	return response, err
 }
 
 func (server *Server) RawScan(_ context.Context, req *kvrpcpb.RawScanRequest) (*kvrpcpb.RawScanResponse, error) {
 	// Your Code Here (1).
-	return nil, nil
+	// read req.limit kvs from req.StartKey
+	response := new(kvrpcpb.RawScanResponse)
+	// if limit == 0,read 0 kv
+	if req.Limit == 0 {
+		return response, nil
+	}
+	localLimit := req.Limit
+	cont := req.GetContext()
+	reader, err := server.storage.Reader(cont)
+	if err != nil {
+		response.Error = err.Error()
+		return response, nil
+	}
+	iterator := reader.IterCF(req.GetCf())
+	iterator.Seek(req.StartKey)
+	var kvPairs []*kvrpcpb.KvPair
+	// ergodic iterator
+	for ; iterator.Valid(); iterator.Next() {
+		item := iterator.Item()
+		var tempKvPair = new(kvrpcpb.KvPair)
+		tempKvPair.Key = item.Key()
+		tempKvPair.Value, _ = item.Value()
+		kvPairs = append(kvPairs, tempKvPair)
+		localLimit--
+		if localLimit == 0 {
+			break
+		}
+	}
+	response.Kvs = kvPairs
+	return response, nil
 }
 
 // Raft commands (tinykv <-> tinykv)
