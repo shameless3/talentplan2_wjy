@@ -16,7 +16,6 @@ package raft
 
 import (
 	"errors"
-
 	pb "github.com/pingcap-incubator/tinykv/proto/pkg/eraftpb"
 )
 
@@ -69,13 +68,15 @@ type Ready struct {
 // RawNode is a wrapper of Raft.
 type RawNode struct {
 	Raft *Raft
+	Rd   *Ready
 	// Your Data Here (2A).
 }
 
 // NewRawNode returns a new RawNode given configuration and a list of raft peers.
 func NewRawNode(config *Config) (*RawNode, error) {
 	// Your Code Here (2A).
-	return nil, nil
+	r := newRaft(config)
+	return &RawNode{Raft: r, Rd: &Ready{}}, nil
 }
 
 // Tick advances the internal logical clock by a single tick.
@@ -143,19 +144,34 @@ func (rn *RawNode) Step(m pb.Message) error {
 // Ready returns the current point-in-time state of this RawNode.
 func (rn *RawNode) Ready() Ready {
 	// Your Code Here (2A).
-	return Ready{}
+	rn.Rd.Entries = rn.Raft.RaftLog.unstableEntries()
+	rn.Rd.CommittedEntries = rn.Raft.RaftLog.nextEnts()
+	rn.Rd.Messages = rn.Raft.msgs
+	return *rn.Rd
 }
 
 // HasReady called when RawNode user need to check if any Ready pending.
 func (rn *RawNode) HasReady() bool {
 	// Your Code Here (2A).
-	return false
+	if rn.Rd.CommittedEntries == nil && rn.Rd.Entries == nil && rn.Rd.Messages == nil {
+		return false
+	}
+	return true
 }
 
 // Advance notifies the RawNode that the application has applied and saved progress in the
 // last Ready results.
 func (rn *RawNode) Advance(rd Ready) {
 	// Your Code Here (2A).
+	if len(rd.Entries) > 0 {
+		rn.Raft.RaftLog.stabled = rd.Entries[len(rd.Entries)-1].Index
+	}
+	if len(rd.CommittedEntries) > 0 {
+		rn.Raft.RaftLog.applied = rd.CommittedEntries[len(rd.CommittedEntries)-1].Index
+	}
+	rn.Rd.CommittedEntries = nil
+	rn.Rd.Messages = nil
+	rn.Rd.Entries = nil
 }
 
 // GetProgress return the the Progress of this node and its peers, if this

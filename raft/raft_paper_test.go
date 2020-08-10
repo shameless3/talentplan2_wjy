@@ -462,13 +462,11 @@ func TestLeaderAcknowledgeCommit2AB(t *testing.T) {
 		commitNoopEntry(r, s)
 		li := r.RaftLog.LastIndex()
 		r.Step(pb.Message{From: 1, To: 1, MsgType: pb.MessageType_MsgPropose, Entries: []*pb.Entry{{Data: []byte("some data")}}})
-
 		for _, m := range r.readMessages() {
 			if tt.acceptors[m.To] {
 				r.Step(acceptAndReply(m))
 			}
 		}
-
 		if g := r.RaftLog.committed > li; g != tt.wack {
 			t.Errorf("#%d: ack commit = %v, want %v", i, g, tt.wack)
 		}
@@ -890,6 +888,7 @@ func commitNoopEntry(r *Raft, s *MemoryStorage) {
 	if r.State != StateLeader {
 		panic("it should only be used when it is the leader")
 	}
+
 	for id := range r.Prs {
 		if id == r.id {
 			continue
@@ -897,6 +896,7 @@ func commitNoopEntry(r *Raft, s *MemoryStorage) {
 
 		r.sendAppend(id)
 	}
+
 	// simulate the response of MessageType_MsgAppend
 	msgs := r.readMessages()
 	for _, m := range msgs {
