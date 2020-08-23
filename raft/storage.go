@@ -111,7 +111,9 @@ func (ms *MemoryStorage) Entries(lo, hi uint64) ([]pb.Entry, error) {
 	ms.Lock()
 	defer ms.Unlock()
 	offset := ms.ents[0].Index
+	log.Infof("lo:%d,offset:%d", lo, offset)
 	if lo <= offset {
+		log.Infof("lo:%d,offset:%d", lo, offset)
 		return nil, ErrCompacted
 	}
 	if hi > ms.lastIndex()+1 {

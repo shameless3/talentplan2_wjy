@@ -72,7 +72,7 @@ func newLog(storage Storage) *RaftLog {
 	if err != nil {
 		panic(err)
 	}
-	return &RaftLog{storage: storage, stabled: lastIndex, entries: entries, firstIndex: firstIndex}
+	return &RaftLog{storage: storage, stabled: lastIndex, entries: entries, firstIndex: firstIndex, applied: firstIndex - 1}
 }
 
 // appendEntries append entries to raftlog.entries
@@ -130,6 +130,7 @@ func (l *RaftLog) nextEnts() (ents []pb.Entry) {
 		return make([]pb.Entry, 0)
 	}
 	// get (applied,commited]
+	log.Infof("try to get %d-%d", l.applied+1, l.committed+1)
 	entries, err := l.Slice(l.applied+1, l.committed+1)
 	if err != nil {
 		panic(err)
@@ -196,6 +197,7 @@ func (l *RaftLog) Slice(lo uint64, hi uint64) ([]pb.Entry, error) {
 	} else {
 		entriesInStorage, err := l.storage.Entries(lo, hi)
 		if err != nil {
+			log.Infof("%d", len(l.entries))
 			return nil, err
 		}
 		return entriesInStorage, nil
